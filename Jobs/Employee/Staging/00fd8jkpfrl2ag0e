@@ -1,0 +1,35 @@
+from pyspark import SparkContext, SparkConf
+from pyspark.sql import SparkSession, SQLContext
+
+spark = SparkSession.builder \
+    .config("spark.driver.extraClassPath", "./allJarsFiles/postgresql-42.6.0.jar") \
+    .getOrCreate()
+
+print("Reading the data from Protgres")
+spark_df_postgres = spark.read.format("jdbc") \
+    .option("url", "jdbc:postgresql://172.31.9.108:5432/demodb") \
+    .option("user", "postgres") \
+    .option("password", "password1") \
+    .option("driver", "org.postgresql.Driver") \
+    .option("query", "select e.emp_id,e.emp_name,e.joining_date,s.emp_salary from employee e join salary s on e.emp_id=s.emp_id where s.emp_salary>50000") \
+    .load()
+print("Reading postgres completed")
+
+# Writing the data from s3 to Redshift
+redshift_url = "jdbc:redshift://{host}:{port}/{database}".format(
+    host="redshift-cluster-1.c2fnra0zrekb.us-east-2.redshift.amazonaws.com",
+    port="5439",
+    database="demodb"
+)
+redshift_properties = {
+    "user": "awsuser",
+    "password": "yV3627&dGEHj",
+    "driver": "com.amazon.redshift.jdbc42.Driver"
+}
+table_name = 'psyspark_high_sal'
+
+print("Writing the data from Protgres to Redshift in overwrite mode")
+# Writing the data to Redshift in overwrite mode
+spark_df_postgres.write.jdbc(url=redshift_url, table=table_name , mode="overwrite", properties=redshift_properties)
+print("Writing to Redshift completed")
+
